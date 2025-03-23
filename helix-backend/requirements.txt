@@ -1,0 +1,10 @@
+pinecone
+langchain-community
+langchain
+flask
+python-dotenv
+langsmith
+openai
+pydantic
+psycopg2
+socketio
