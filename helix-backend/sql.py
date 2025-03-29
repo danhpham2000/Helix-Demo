@@ -30,7 +30,7 @@ INSERT_INTO_USERS_TABLE = """INSERT INTO users (name, email, password, company_n
 VALUES (%s, %s, %s, %s);
 """
 
-UPDADATE_INTO_SEQUENCE_TABLE = """UPDATE sequences SET title = %s, num_steps = %s, description = %s WHERE id = %s"""
+UPDATE_INTO_SEQUENCE_TABLE = """UPDATE sequences SET title = %s, num_steps = %s, description = %s WHERE id = %s"""
 
 
 GET_SEQUENCE_DATA = """SELECT * FROM sequences WHERE id = %s"""
