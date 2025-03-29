@@ -1,16 +1,18 @@
-from flask import Flask, request, jsonify
+import time
+from flask import Flask, request, jsonify, stream_with_context, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
+from agents import workflow_graph
 from database import cursor, connection
-from agents import workflow_graph, generate_sequence, tools
-from sql import GET_SEQUENCE_DATA, CREATE_SEQUENCES_TABLE
-
-
+from sql import GET_SEQUENCE_DATA
+import json
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
 CORS(app, origins="*")
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+socketio = SocketIO(app, cors_allowed_origins="*", transports=["websocket"])
 
 
 @socketio.on('connect')
@@ -36,30 +38,33 @@ async def register():
     return "users table created"
 
 
-@app.route("/api/new-chat", methods=["POST", "GET"])
-# @socketio.on("new-chat")
-async def newchat(message):
-    print(message)
-    user_messages = request.json.get("user_messages")
+# @app.route("/api/new-chat", methods=["POST", "GET"])
+@socketio.on("human_response")
+def newchat(data):
+    user_messages = data
+    print("User message", user_messages)
 
     config = {"configurable": {"thread_id": "1"}}
 
-    system_prompt = "You are a helpful AI chatbot that assist to gather and ask about information about recruiting message outreach details sequence" \
+    system_prompt = "You are a helpful AI chatbot that assist to gather and ask about information about recruiting message outreach details sequence"\
+                     "The user work at Google, technical recruiter with 20 years of experience" \
                     "When enough data is collect, you begin to create a message sequence, not INSTRUCTION STEPS using provided tools name generate_sequence fo the workspace" \
                     "The user should be able to request edit by you or they can manually edit that" \
                     "You should know how many steps, title, and description on your own and don't ask user about that" \
                     "You only need to gather information enough from the user" \
                     "Remember to response very shortly, not too much" \
                     "When you begin generate message steps, response GENERATE SEQUENCE..." \
-                    "When you begin update message steps, response UPDATING SEQUENCE..."\
-                    "You must NEVER generate sequence in the chat, it happens in the back system, and after finish sequence generation, ask user follow up questions"\
-                     "FINAL THING, you generate message steps, not INSTRUCTION STEPS"\
+                    "When you begin update message steps, response UPDATING SEQUENCE..." \
+                    "You must NEVER generate sequence in the chat, it happens in the back system, and after finish sequence generation, ask user follow up questions" \
+                    "FINAL THING, you generate message steps, not INSTRUCTION STEPS" \
                     "Example, Hi {candidate_name}, my name is ...."
 
     try:
-        response =  workflow_graph.stream({"messages": [{"role": "user", "content":
+        response = workflow_graph.stream({"messages": [{"role": "human", "content":
             user_messages}, {"role": "system", "content": system_prompt}]},
                                          config=config, stream_mode="values")
+
+
 
         ai_response = None
         sequence = {}
@@ -68,19 +73,33 @@ async def newchat(message):
             ai_response = result["messages"][-1].content
             if "GENERATE SEQUENCE..." in result["messages"][-2].content:
                 if "tool_calls" in result["messages"][-2].additional_kwargs:
-                    sequence = result["messages"][-2].additional_kwargs.get("tool_calls")[0].get("function").get("arguments")
+                    sequence = result["messages"][-2].additional_kwargs.get("tool_calls")[0].get("function").get(
+                        "arguments")
+                    sequence = json.loads(sequence)
 
-        # emit("chat_data", {"messages": ai_response, "workspace": sequence}, broadcast=True)
-        return {"messages": ai_response, "sequences": sequence}
+                    print(sequence.get("description"))
+            if "UPDATING SEQUENCE..." in result["messages"][-2].content:
+                if "tool_calls" in result["messages"][-2].additional_kwargs:
+                    sequence = result["messages"][-2].additional_kwargs.get("tool_calls")[0].get("function").get(
+                        "arguments")
+                    sequence = json.loads(sequence)
+
+
+            # Replace newlines with spaces or empty string
+        emit("ai_response", {"messages": ai_response, "workspace": sequence.get("description")}, broadcast=True)
+
+        return "Done message"
     except Exception as e:
         print(e)
         print("\n")
         return jsonify({"messages": "Failed to load"})
 
+
 class SequenceData:
     title: str
     description: list
     num_steps: int
+
 
 # @socketio.on("generate_sequence")
 # def handle_hr_sequence(data: SequenceData):
@@ -120,5 +139,5 @@ async def preferences():
     #     print(data)
     pass
 
-
-
+# if __name__ == "__main__":
+#     socketio.run(app, debug=True, port=5000)
