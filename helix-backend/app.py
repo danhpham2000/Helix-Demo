@@ -41,13 +41,16 @@ async def register():
 # @app.route("/api/new-chat", methods=["POST", "GET"])
 @socketio.on("human_response")
 def newchat(data):
-    user_messages = data
-    print("User message", user_messages)
+    user_messages = data.get("userInput")
+    name = data.get("name")
+    title = data.get("title")
+    company = data.get("company")
+
 
     config = {"configurable": {"thread_id": "1"}}
 
     system_prompt = "You are a helpful AI chatbot that assist to gather and ask about information about recruiting message outreach details sequence"\
-                     "The user work at Google, technical recruiter with 20 years of experience" \
+                     f"The user name is {name} work at {company}, as {title} with 20 years of experience" \
                     "When enough data is collect, you begin to create a message sequence, not INSTRUCTION STEPS using provided tools name generate_sequence fo the workspace" \
                     "The user should be able to request edit by you or they can manually edit that" \
                     "You should know how many steps, title, and description on your own and don't ask user about that" \
@@ -72,6 +75,7 @@ def newchat(data):
         for result in response:
             ai_response = result["messages"][-1].content
             if "GENERATE SEQUENCE..." in result["messages"][-2].content:
+                emit("calling_tool", {"calling_tool": "Generating"})
                 if "tool_calls" in result["messages"][-2].additional_kwargs:
                     sequence = result["messages"][-2].additional_kwargs.get("tool_calls")[0].get("function").get(
                         "arguments")
@@ -79,16 +83,15 @@ def newchat(data):
 
                     print(sequence.get("description"))
             if "UPDATING SEQUENCE..." in result["messages"][-2].content:
+                emit("calling_tool", {"calling_tool": "Updating"})
                 if "tool_calls" in result["messages"][-2].additional_kwargs:
                     sequence = result["messages"][-2].additional_kwargs.get("tool_calls")[0].get("function").get(
                         "arguments")
                     sequence = json.loads(sequence)
 
-
-            # Replace newlines with spaces or empty string
+# Replace newlines with spaces or empty string
         emit("ai_response", {"messages": ai_response, "workspace": sequence.get("description")}, broadcast=True)
 
-        return "Done message"
     except Exception as e:
         print(e)
         print("\n")
