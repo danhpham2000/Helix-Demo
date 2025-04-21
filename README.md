@@ -29,7 +29,7 @@ git clone https://github.com/danhpham2000/Helix-Demo.git
 - Second, navigate to each folder
 
 
-#### Frontend (helix-front)
+#### Frontend
 ```
 bun install 
 ```
@@ -49,7 +49,7 @@ or
 npm run dev
 ```
 
-#### Backend (helix-backend)
+#### Backend 
 ```
 pip3 install -r requirements.txt
 ```
